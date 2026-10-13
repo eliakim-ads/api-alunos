@@ -17,8 +17,18 @@ describe.each([
       { id: number; nome: string; [key: string]: string | number }[]
     > = {
       alunos: [
-        { id: 1, nome: 'Ana', curso: 'Sistemas de Informação' },
-        { id: 2, nome: 'Carlos', curso: 'Ciência da Computação' },
+        {
+          id: 1,
+          nome: 'Ana',
+          email: 'ana@example.com',
+          curso: 'Sistemas de Informação',
+        },
+        {
+          id: 2,
+          nome: 'Carlos',
+          email: 'carlos@example.com',
+          curso: 'Ciência da Computação',
+        },
       ],
       professores: [
         { id: 1, nome: 'João', disciplina: 'Programação Web' },
@@ -41,14 +51,22 @@ describe.each([
         }
         if (sql.startsWith('INSERT')) {
           const id = ids[tabela]++;
-          rows.push({ id, nome: String(values[0]), [campo]: values[1] });
+          rows.push({
+            id,
+            nome: String(values[0]),
+            ...(tabela === 'alunos' ? { email: values[1] } : {}),
+            [campo]: values[tabela === 'alunos' ? 2 : 1],
+          });
           return [{ insertId: id, affectedRows: 1 }, []];
         }
         if (sql.startsWith('UPDATE')) {
-          const item = rows.find((row) => row.id === values[2]);
+          const item = rows.find(
+            (row) => row.id === values[tabela === 'alunos' ? 3 : 2],
+          );
           if (item) {
             item.nome = String(values[0]);
-            item[campo] = values[1];
+            if (tabela === 'alunos') item.email = values[1];
+            item[campo] = values[tabela === 'alunos' ? 2 : 1];
           }
           return [{ affectedRows: item ? 1 : 0 }, []];
         }
@@ -83,13 +101,21 @@ describe.each([
       .get(base + '/1')
       .expect(200)
       .expect(lista.body[0]);
-    const body = { nome: 'Teste', [campo]: 'Inicial' };
+    const body = {
+      nome: 'Teste',
+      ...(recurso === 'alunos' ? { email: 'teste@example.com' } : {}),
+      [campo]: 'Inicial',
+    };
     await request(server)
       .post(base)
       .send(body)
       .expect(201)
       .expect({ id: 3, ...body });
-    const atualizado = { nome: 'Atualizado', [campo]: 'Final' };
+    const atualizado = {
+      nome: 'Atualizado',
+      ...(recurso === 'alunos' ? { email: 'atualizado@example.com' } : {}),
+      [campo]: 'Final',
+    };
     await request(server)
       .put(base + '/3')
       .send(atualizado)

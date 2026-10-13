@@ -9,7 +9,7 @@ Os CRUDs de alunos e professores usam Controller → Service → Repository → 
 3. Em um banco novo, execute sql/schema.sql no phpMyAdmin. O script preserva tabelas existentes. A aplicação não cria tabelas automaticamente.
 4. Execute npm install e npm run start:dev.
 
-A API atende na porta 3000. As rotas GET, POST, PUT e DELETE continuam em /alunos e /professores. Os corpos JSON usam nome/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
+A API atende na porta 3000. As rotas GET, POST, PUT e DELETE continuam em /alunos e /professores. Os corpos JSON usam nome/email/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
 
 DELETE agora retorna a quantidade de linhas excluídas: 1 quando encontra o registro, 0 quando ele não existe. PUT retorna o registro atualizado ou uma resposta vazia se ele não existe. IDs inválidos retornam HTTP 400.
 

@@ -13,12 +13,12 @@ export class AlunosService {
     return this.repository.findById(id);
   }
 
-  create(nome: string, curso: string) {
-    return this.repository.create(nome, curso);
+  create(nome: string, email: string, curso: string) {
+    return this.repository.create(nome, email, curso);
   }
 
-  async update(id: number, nome: string, curso: string) {
-    await this.repository.update(id, nome, curso);
+  async update(id: number, nome: string, email: string, curso: string) {
+    await this.repository.update(id, nome, email, curso);
     return this.repository.findById(id);
   }
 

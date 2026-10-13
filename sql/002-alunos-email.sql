@@ -1,0 +1,1 @@
+ALTER TABLE alunos ADD COLUMN email VARCHAR(150) AFTER nome;
