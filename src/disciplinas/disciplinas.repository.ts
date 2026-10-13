@@ -1,53 +1,47 @@
 import { Injectable } from '@nestjs/common';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { DatabaseService } from '../database/database.service';
+import { PrismaService } from '../prisma/prisma.service.js';
+import type { Disciplina } from '../generated/prisma/client.js';
 
-export interface DisciplinaRow extends RowDataPacket {
-  id: number;
-  nome: string;
-  carga_horaria: number;
+// @map no schema usa cargaHoraria no ORM; a API mantém carga_horaria no JSON.
+function toResponse(row: Disciplina) {
+  return { id: row.id, nome: row.nome, carga_horaria: row.cargaHoraria };
 }
 
 @Injectable()
 export class DisciplinasRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    const [rows] = await this.database.execute<DisciplinaRow[]>(
-      'SELECT id, nome, carga_horaria FROM disciplinas ORDER BY id',
-    );
-    return rows;
+    const rows = await this.prisma.disciplina.findMany({
+      orderBy: { id: 'asc' },
+    });
+    return rows.map(toResponse);
   }
 
   async findById(id: number) {
-    const [rows] = await this.database.execute<DisciplinaRow[]>(
-      'SELECT id, nome, carga_horaria FROM disciplinas WHERE id = ?',
-      [id],
-    );
-    return rows[0] ?? null;
+    const row = await this.prisma.disciplina.findUnique({ where: { id } });
+    return row ? toResponse(row) : null;
   }
 
   async create(nome: string, carga_horaria: number) {
-    const [result] = await this.database.execute<ResultSetHeader>(
-      'INSERT INTO disciplinas (nome, carga_horaria) VALUES (?, ?)',
-      [nome, carga_horaria],
+    return toResponse(
+      await this.prisma.disciplina.create({
+        data: { nome, cargaHoraria: carga_horaria },
+      }),
     );
-    return { id: result.insertId, nome, carga_horaria };
   }
 
   async update(id: number, nome: string, carga_horaria: number) {
-    const [result] = await this.database.execute<ResultSetHeader>(
-      'UPDATE disciplinas SET nome = ?, carga_horaria = ? WHERE id = ?',
-      [nome, carga_horaria, id],
+    return toResponse(
+      await this.prisma.disciplina.update({
+        where: { id },
+        data: { nome, cargaHoraria: carga_horaria },
+      }),
     );
-    return result.affectedRows;
   }
 
   async delete(id: number) {
-    const [result] = await this.database.execute<ResultSetHeader>(
-      'DELETE FROM disciplinas WHERE id = ?',
-      [id],
-    );
-    return result.affectedRows;
+    await this.prisma.disciplina.delete({ where: { id } });
+    return 1;
   }
 }

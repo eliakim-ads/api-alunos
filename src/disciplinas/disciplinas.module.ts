@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
-import { DisciplinasController } from './disciplinas.controller';
-import { DisciplinasService } from './disciplinas.service';
-import { DisciplinasRepository } from './disciplinas.repository';
+import { PrismaModule } from '../prisma/prisma.module.js';
+import { DisciplinasController } from './disciplinas.controller.js';
+import { DisciplinasService } from './disciplinas.service.js';
+import { DisciplinasRepository } from './disciplinas.repository.js';
 
+// O módulo agora importa o Prisma compartilhado em lugar do DatabaseModule.
 @Module({
-  imports: [DatabaseModule],
+  imports: [PrismaModule],
   controllers: [DisciplinasController],
   providers: [DisciplinasService, DisciplinasRepository],
 })

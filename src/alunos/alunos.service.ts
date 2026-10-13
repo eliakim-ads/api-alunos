@@ -1,15 +1,16 @@
+import { ListAlunosDto } from './dto/list-alunos.dto.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AlunosRepository } from './alunos.repository';
-import { CreateAlunoDto } from './dto/create-aluno.dto';
-import { UpdateAlunoDto } from './dto/update-aluno.dto';
-import { PatchAlunoDto } from './dto/patch-aluno.dto';
+import { AlunosRepository } from './alunos.repository.js';
+import { CreateAlunoDto } from './dto/create-aluno.dto.js';
+import { UpdateAlunoDto } from './dto/update-aluno.dto.js';
+import { PatchAlunoDto } from './dto/patch-aluno.dto.js';
 
 @Injectable()
 export class AlunosService {
   constructor(private readonly repository: AlunosRepository) {}
 
-  findAll() {
-    return this.repository.findAll();
+  findAll(query: ListAlunosDto = {}) {
+    return this.repository.findAll(query);
   }
 
   async findById(id: number) {

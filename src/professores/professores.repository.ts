@@ -1,53 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { DatabaseService } from '../database/database.service';
-
-export interface ProfessorRow extends RowDataPacket {
-  id: number;
-  nome: string;
-  disciplina: string;
-}
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class ProfessoresRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
-    const [rows] = await this.databaseService.execute<ProfessorRow[]>(
-      'SELECT id, nome, disciplina FROM professores ORDER BY id',
-    );
-    return rows;
+  // Os repositories passam a usar delegates tipados do Prisma, sem SQL manual.
+  findAll() {
+    return this.prisma.professor.findMany({ orderBy: { id: 'asc' } });
   }
 
-  async findById(id: number) {
-    const [rows] = await this.databaseService.execute<ProfessorRow[]>(
-      'SELECT id, nome, disciplina FROM professores WHERE id = ?',
-      [id],
-    );
-    return rows[0] ?? null;
+  findById(id: number) {
+    return this.prisma.professor.findUnique({ where: { id } });
   }
 
-  async create(nome: string, disciplina: string) {
-    const [result] = await this.databaseService.execute<ResultSetHeader>(
-      'INSERT INTO professores (nome, disciplina) VALUES (?, ?)',
-      [nome, disciplina],
-    );
-    return { id: result.insertId, nome, disciplina };
+  create(nome: string, disciplina: string) {
+    return this.prisma.professor.create({ data: { nome, disciplina } });
   }
 
   async update(id: number, nome: string, disciplina: string) {
-    const [result] = await this.databaseService.execute<ResultSetHeader>(
-      'UPDATE professores SET nome = ?, disciplina = ? WHERE id = ?',
-      [nome, disciplina, id],
-    );
-    return result.affectedRows;
+    // updateMany preserva o retorno null/200 da API anterior quando o ID não existe.
+    const result = await this.prisma.professor.updateMany({
+      where: { id },
+      data: { nome, disciplina },
+    });
+    return result.count;
   }
 
   async delete(id: number) {
-    const [result] = await this.databaseService.execute<ResultSetHeader>(
-      'DELETE FROM professores WHERE id = ?',
-      [id],
-    );
-    return result.affectedRows;
+    const result = await this.prisma.professor.deleteMany({ where: { id } });
+    return result.count;
   }
 }

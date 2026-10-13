@@ -1,3 +1,4 @@
+import { ListAlunosDto } from './dto/list-alunos.dto.js';
 import {
   Body,
   Controller,
@@ -10,19 +11,20 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
-import { AlunosService } from './alunos.service';
-import { CreateAlunoDto } from './dto/create-aluno.dto';
-import { UpdateAlunoDto } from './dto/update-aluno.dto';
-import { PatchAlunoDto } from './dto/patch-aluno.dto';
+import { AlunosService } from './alunos.service.js';
+import { CreateAlunoDto } from './dto/create-aluno.dto.js';
+import { UpdateAlunoDto } from './dto/update-aluno.dto.js';
+import { PatchAlunoDto } from './dto/patch-aluno.dto.js';
 
 @Controller('alunos')
 export class AlunosController {
   constructor(private readonly service: AlunosService) {}
 
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@Query() query: ListAlunosDto) {
+    return this.service.findAll(query);
   }
 
   @Get(':id')

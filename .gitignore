@@ -72,3 +72,9 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+# Prisma Client é gerado a partir do schema.
+/src/generated/prisma/
+
+# Migrations e scripts locais não serão versionados.
+/prisma/migrations/
+/scripts/

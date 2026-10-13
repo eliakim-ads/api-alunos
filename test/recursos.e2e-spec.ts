@@ -1,8 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { DatabaseService } from '../src/database/database.service';
+import { AppModule } from '../src/app.module.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
+import { createPrismaMock } from './prisma.mock.js';
 
 describe.each([
   ['alunos', 'curso'],
@@ -12,98 +13,12 @@ describe.each([
   let app: INestApplication;
 
   beforeEach(async () => {
-    // Substitui apenas o driver: controller, service e repository são reais.
-    const dados: Record<
-      string,
-      { id: number; nome: string; [key: string]: string | number }[]
-    > = {
-      alunos: [
-        {
-          id: 1,
-          nome: 'Ana',
-          email: 'ana@example.com',
-          curso: 'Sistemas de Informação',
-        },
-        {
-          id: 2,
-          nome: 'Carlos',
-          email: 'carlos@example.com',
-          curso: 'Ciência da Computação',
-        },
-      ],
-      disciplinas: [
-        { id: 1, nome: 'Programação Web', carga_horaria: 80 },
-        { id: 2, nome: 'Banco de Dados', carga_horaria: 60 },
-      ],
-      professores: [
-        { id: 1, nome: 'João', disciplina: 'Programação Web' },
-        { id: 2, nome: 'Mariana', disciplina: 'Banco de Dados' },
-      ],
-    };
-    const ids: Record<string, number> = {
-      alunos: 3,
-      professores: 3,
-      disciplinas: 3,
-    };
-    const database = {
-      async execute(sql: string, values: (string | number)[] = []) {
-        const tabela = sql.includes('alunos')
-          ? 'alunos'
-          : sql.includes('disciplinas')
-            ? 'disciplinas'
-            : 'professores';
-        const campo =
-          tabela === 'alunos'
-            ? 'curso'
-            : tabela === 'disciplinas'
-              ? 'carga_horaria'
-              : 'disciplina';
-        const rows = dados[tabela];
-        if (sql.startsWith('SELECT')) {
-          return [
-            sql.includes('WHERE')
-              ? rows.filter((item) => item.id === values[0])
-              : [...rows],
-            [],
-          ];
-        }
-        if (sql.startsWith('INSERT')) {
-          const id = ids[tabela]++;
-          rows.push({
-            id,
-            nome: String(values[0]),
-            ...(tabela === 'alunos' ? { email: values[1] } : {}),
-            [campo]: values[tabela === 'alunos' ? 2 : 1],
-          });
-          return [{ insertId: id, affectedRows: 1 }, []];
-        }
-        if (sql.startsWith('UPDATE')) {
-          const item = rows.find((row) => row.id === values[values.length - 1]);
-          if (item) {
-            const columns = sql
-              .split(' SET ')[1]
-              .split(' WHERE ')[0]
-              .split(',')
-              .map((entry) => entry.trim().split(' ')[0]);
-            columns.forEach((column, index) => {
-              item[column] = values[index];
-            });
-          }
-          return [{ affectedRows: item ? 1 : 0 }, []];
-        }
-        if (sql.startsWith('DELETE')) {
-          const index = rows.findIndex((row) => row.id === values[0]);
-          if (index !== -1) rows.splice(index, 1);
-          return [{ affectedRows: index === -1 ? 0 : 1 }, []];
-        }
-        throw new Error('SQL inesperado: ' + sql);
-      },
-    };
+    const prisma = createPrismaMock();
     const module = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(DatabaseService)
-      .useValue(database)
+      .overrideProvider(PrismaService)
+      .useValue(prisma)
       .compile();
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -116,7 +31,7 @@ describe.each([
     await app.close();
   });
 
-  it('integra controller, service e repository no CRUD com driver simulado', async () => {
+  it('integra controller, service e repository no CRUD com Prisma simulado', async () => {
     const server = app.getHttpServer();
     const base = '/' + recurso;
     const lista = await request(server).get(base).expect(200);
@@ -155,9 +70,16 @@ describe.each([
       .expect(recurso === 'professores' ? '1' : '');
     await request(server)
       .post(base)
-      .send(body)
+      .send({
+        ...body,
+        ...(recurso === 'alunos' ? { email: 'outro@example.com' } : {}),
+      })
       .expect(201)
-      .expect({ id: 4, ...body });
+      .expect({
+        id: 4,
+        ...body,
+        ...(recurso === 'alunos' ? { email: 'outro@example.com' } : {}),
+      });
     const final = await request(server).get(base).expect(200);
     expect(final.body.map((item: { id: number }) => item.id)).toEqual([
       2, 3, 4,
@@ -227,6 +149,33 @@ describe.each([
           .send({ ...valid, carga_horaria: hours })
           .expect(400);
     }
+  });
+
+  it('combina filtros, paginação e restrição de e-mail único', async () => {
+    if (recurso !== 'alunos') return;
+    const server = app.getHttpServer();
+    const byCourse = await request(server)
+      .get('/alunos?curso=Sistemas%20de%20Informa%C3%A7%C3%A3o')
+      .expect(200);
+    expect(byCourse.body.map((row: { id: number }) => row.id)).toEqual([1]);
+    const byName = await request(server).get('/alunos?nome=arl').expect(200);
+    expect(byName.body.map((row: { id: number }) => row.id)).toEqual([2]);
+    const page = await request(server)
+      .get('/alunos?page=2&limit=1')
+      .expect(200);
+    expect(page.body.map((row: { id: number }) => row.id)).toEqual([2]);
+    await request(server).get('/alunos?page=0').expect(400);
+    await request(server).get('/alunos?page=abc').expect(400);
+    await request(server).get('/alunos?limit=101').expect(400);
+    await request(server).get('/alunos?limit=1.5').expect(400);
+    await request(server)
+      .post('/alunos')
+      .send({ nome: 'Duplicado', email: 'ana@example.com', curso: 'ADS' })
+      .expect(409);
+    await request(server)
+      .patch('/alunos/2')
+      .send({ email: 'ana@example.com' })
+      .expect(409);
   });
 
   it('rejeita IDs inválidos e trata atualização/exclusão de IDs ausentes', async () => {

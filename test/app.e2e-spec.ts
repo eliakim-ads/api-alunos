@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
-import { DatabaseService } from '../src/database/database.service';
+import { AppModule } from './../src/app.module.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -12,7 +12,7 @@ describe('AppController (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(DatabaseService)
+      .overrideProvider(PrismaService)
       .useValue({})
       .compile();
 

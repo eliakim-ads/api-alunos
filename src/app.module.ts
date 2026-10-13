@@ -1,11 +1,13 @@
-import { DisciplinasModule } from './disciplinas/disciplinas.module';
+import { APP_FILTER } from '@nestjs/core';
+import { PrismaExceptionFilter } from './prisma/prisma-exception.filter.js';
+import { DisciplinasModule } from './disciplinas/disciplinas.module.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 
-import { AlunosModule } from './alunos/alunos.module';
-import { ProfessoresModule } from './professores/professores.module';
+import { AlunosModule } from './alunos/alunos.module.js';
+import { ProfessoresModule } from './professores/professores.module.js';
 
 @Module({
   imports: [
@@ -15,6 +17,9 @@ import { ProfessoresModule } from './professores/professores.module';
     DisciplinasModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_FILTER, useClass: PrismaExceptionFilter },
+  ],
 })
 export class AppModule {}

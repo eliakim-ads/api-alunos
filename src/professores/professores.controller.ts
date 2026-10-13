@@ -8,7 +8,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { ProfessoresService } from './professores.service';
+import { ProfessoresService } from './professores.service.js';
 
 @Controller('professores')
 export class ProfessoresController {

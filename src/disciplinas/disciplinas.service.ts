@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DisciplinasRepository } from './disciplinas.repository';
-import { CreateDisciplinaDto } from './dto/create-disciplina.dto';
-import { UpdateDisciplinaDto } from './dto/update-disciplina.dto';
+import { DisciplinasRepository } from './disciplinas.repository.js';
+import { CreateDisciplinaDto } from './dto/create-disciplina.dto.js';
+import { UpdateDisciplinaDto } from './dto/update-disciplina.dto.js';
 
 @Injectable()
 export class DisciplinasService {

@@ -1,0 +1,49 @@
+// Prisma 7 gera código ESM; estes arquivos não devem ser editados manualmente.
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// @@map mantém os nomes das tabelas descobertas por introspecção.
+model Aluno {
+  id            Int    @id @default(autoincrement())
+  nome          String @db.VarChar(100)
+  email         String @unique @db.VarChar(150)
+  // Mantemos o texto para compatibilidade com os DTOs e o Bruno.
+  curso         String @db.VarChar(100)
+  cursoId       Int    @map("curso_id")
+  cursoDetalhes Curso  @relation(fields: [cursoId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([cursoId])
+  @@map("alunos")
+}
+
+model Curso {
+  id     Int     @id @default(autoincrement())
+  nome   String  @unique @db.VarChar(100)
+  // A relação inversa representa Curso 1:N Aluno; não cria uma coluna extra.
+  alunos Aluno[]
+
+  @@map("cursos")
+}
+
+model Disciplina {
+  id           Int    @id @default(autoincrement())
+  nome         String @db.VarChar(100)
+  cargaHoraria Int    @map("carga_horaria")
+
+  @@map("disciplinas")
+}
+
+model Professor {
+  id         Int    @id @default(autoincrement())
+  nome       String @db.VarChar(100)
+  disciplina String @db.VarChar(100)
+
+  @@map("professores")
+}

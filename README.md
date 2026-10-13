@@ -1,43 +1,84 @@
-# API da escola com MySQL
+# API da escola — NestJS e Prisma ORM 7
 
-Os CRUDs de alunos, professores e disciplinas usam Controller → Service → Repository → DatabaseService → MySQL, com mysql2 e um pool de até 10 conexões.
+Os CRUDs de alunos, professores e disciplinas usam Controller → Service → Repository → PrismaService → Prisma Client → adapter MariaDB → MySQL. A Aula 4 migrou a persistência e manteve os DTOs, validações e contratos HTTP existentes.
 
-## Executar localmente
+## Executar
 
-1. Inicie o MySQL na porta 3306. O phpMyAdmin na porta 8001 serve para administrar o banco.
-2. Configure o arquivo .env usando .env.example como referência. O ambiente local está configurado para localhost:3306, usuário root, senha vazia e banco escola.
-3. Em um banco novo, execute sql/schema.sql no phpMyAdmin. O script preserva tabelas existentes. A aplicação não cria tabelas automaticamente.
-4. Execute npm install e npm run start:dev.
+1. Inicie o MySQL na porta 3306 (phpMyAdmin usa a porta 8001).
+2. Configure .env a partir de .env.example. DB_* são usados pelo adapter no Nest; DATABASE_URL é usada pela CLI do Prisma. Mantenha os dois conjuntos sincronizados e codifique caracteres especiais da senha na URL.
+3. Execute npm install.
+4. Execute npm run prisma:generate e npm run prisma:deploy.
+5. Execute npm run start:dev. A API usa http://localhost:3000.
 
-A API atende na porta 3000. As rotas GET, POST, PUT e DELETE estão em /alunos, /professores e /disciplinas. Alunos também oferecem PATCH /alunos/:id. Os corpos JSON usam nome/email/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
+Os scripts de build e start:dev também geram o Prisma Client automaticamente. O projeto usa ESM e Node.js 24. Os imports relativos TypeScript terminam em .js, para funcionarem após a compilação. src/generated/prisma é produzido pelo generator e não deve ser editado nem versionado.
 
-Alunos e disciplinas retornam 404 quando o ID não existe, e DELETE retorna 204 sem corpo quando exclui. POST e PUT exigem todos os campos do DTO. Professores mantêm o contrato anterior: DELETE retorna 1 ou 0. IDs inválidos retornam HTTP 400.
+Para executar a versão compilada: npm run build e npm run start:prod.
 
-O arquivo .env está ignorado pelo Git. Os dados persistem no MySQL após reiniciar a API. Os shutdown hooks fecham o pool ao encerrar a aplicação.
+## Banco existente e migrations
 
-## Aula 3: DTOs e validação
+A estrutura real foi descoberta com prisma db pull. A baseline 0_init inclui as três tabelas já existentes, com sua collation original, e foi marcada como aplicada sem recriar tabelas. A segunda migration acrescenta email único e a relação Curso–Aluno, preservando os registros antigos.
 
-A validação global usa whitelist: true e transform: true. Campos extras são removidos. Entradas inválidas retornam 400. Nome e curso são textos obrigatórios com até 100 caracteres; email é obrigatório, válido e tem até 150 caracteres. PUT exige todos os campos. PATCH de alunos usa PartialType e aceita campos ausentes, mas rejeita null.
+A tabela disciplinas e a coluna email já existiam; por isso entram na baseline. Não são criadas novamente como se o banco estivesse vazio. Os scripts sql/ são registros históricos das aulas anteriores; o schema de referência agora é prisma/schema.prisma.
 
-Exemplo POST /alunos e PUT /alunos/:id:
+Na relação, Aluno.cursoId aponta para Curso.id. O campo textual curso continua no JSON por compatibilidade. O repository mantém texto e relação sincronizados usando connectOrCreate ao criar ou alterar um curso. O schema usa fields/references para a FK e @@map/@map para os nomes físicos. O script de verificação demonstra include para carregar cursoDetalhes.
+
+A alteração foi gerada e revisada como migration e aplicada com migrate deploy, sem reset do banco. Uma cópia local anterior à migração está em .tmp/antes-prisma.json (ignorada pelo Git).
+
+Comandos disponíveis:
+
+| Comando                                          | Uso                                      |
+| ------------------------------------------------ | ---------------------------------------- |
+| npm run prisma:pull                              | Descobrir mudanças já feitas no banco    |
+| npm run prisma:generate                          | Gerar client e tipos após mudar o schema |
+| npm run prisma:status                            | Conferir o histórico aplicado            |
+| npm run prisma:migrate -- --name nome_da_mudanca | Criar migration no desenvolvimento       |
+| npm run prisma:deploy                            | Aplicar migrations pendentes             |
+| npm run prisma:studio                            | Abrir Prisma Studio para consultar dados |
+
+Migrations aplicadas são imutáveis. Alterações futuras devem criar migrations novas. Ao usar db pull, revise os models e seus mapeamentos antes de gerar o client.
+
+## Rotas e respostas
+
+GET, POST, PUT e DELETE existem em /alunos, /professores e /disciplinas. Consultas, atualizações e exclusões individuais usam /:id. Alunos também oferecem PATCH /alunos/:id.
+
+- POST retorna 201. PUT e consultas retornam 200.
+- Alunos e disciplinas retornam 404 quando o ID não existe; DELETE bem-sucedido retorna 204 sem corpo.
+- Professores mantêm o contrato anterior: DELETE retorna 1 ou 0, e busca/atualização de ID ausente retorna corpo vazio.
+- IDs inválidos e DTOs inválidos retornam 400.
+- E-mail duplicado retorna 409. O filtro também converte o erro P2025 do Prisma em 404.
+
+## Filtros e paginação de alunos
+
+Os filtros podem ser combinados. Curso usa igualdade; nome usa contains. O resultado continua sendo um array, ordenado por id.
+
+- GET /alunos?curso=ADS
+- GET /alunos?nome=Ana
+- GET /alunos?page=1&limit=10
+- GET /alunos?curso=ADS&nome=Ana&page=2&limit=5
+
+Sem page e limit, a listagem retorna todos os registros. Ao enviar um deles, os padrões são page=1 e limit=10. limit aceita de 1 a 100; page precisa ser um inteiro positivo. Valores inválidos retornam 400.
+
+## Corpos JSON no Bruno
+
+POST /alunos e PUT /alunos/:id:
 
 ```json
-{"nome":"Maria","email":"maria@senac.com","curso":"ADS"}
+{ "nome": "Maria", "email": "maria@senac.com", "curso": "ADS" }
 ```
 
-Exemplo PATCH /alunos/:id:
+PATCH /alunos/:id aceita somente os campos enviados e rejeita null:
 
 ```json
-{"curso":"Engenharia de Software"}
+{ "curso": "Engenharia de Software" }
 ```
 
-Exemplo POST /disciplinas e PUT /disciplinas/:id:
+POST /disciplinas e PUT /disciplinas/:id:
 
 ```json
-{"nome":"Programação Web II","carga_horaria":80}
+{ "nome": "Programação Web II", "carga_horaria": 80 }
 ```
 
-Carga horária deve ser um inteiro positivo, dentro do limite de INT do MySQL. sql/003-aula3.sql documenta a migração desta aula; preencha e-mails nulos antes de torná-los NOT NULL.
+cargaHoraria é o nome interno do Prisma, mapeado à coluna carga_horaria; o JSON mantém carga_horaria. Nome e curso são textos obrigatórios de até 100 caracteres. Email é válido, obrigatório e tem até 150 caracteres. Carga horária é um inteiro positivo dentro do limite do INT MySQL. Campos extras dos DTOs são removidos pelo whitelist.
 
 ## Verificação
 
@@ -45,122 +86,6 @@ Carga horária deve ser um inteiro positivo, dentro do limite de INT do MySQL. s
 - npm run lint
 - npm test -- --runInBand
 - npm run test:e2e -- --runInBand
+- npm run test:mysql (requer o MySQL configurado e um build atualizado)
 
-Os testes HTTP automatizados substituem o driver do banco por uma implementação simulada; não alteram o banco local.
-
----
-
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
-
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Os testes HTTP automatizados substituem somente PrismaService por uma implementação simulada. O teste MySQL usa os repositories reais, verifica CRUDs, filtros, paginação, PATCH, relações e unicidade, e remove os registros temporários que ele criou.

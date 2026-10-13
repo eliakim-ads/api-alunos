@@ -10,9 +10,9 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { DisciplinasService } from './disciplinas.service';
-import { CreateDisciplinaDto } from './dto/create-disciplina.dto';
-import { UpdateDisciplinaDto } from './dto/update-disciplina.dto';
+import { DisciplinasService } from './disciplinas.service.js';
+import { CreateDisciplinaDto } from './dto/create-disciplina.dto.js';
+import { UpdateDisciplinaDto } from './dto/update-disciplina.dto.js';
 
 @Controller('disciplinas')
 export class DisciplinasController {
