@@ -1,3 +1,31 @@
+# API da escola com MySQL
+
+Os CRUDs de alunos e professores usam Controller → Service → Repository → DatabaseService → MySQL, com mysql2 e um pool de até 10 conexões.
+
+## Executar localmente
+
+1. Inicie o MySQL na porta 3306. O phpMyAdmin na porta 8001 serve para administrar o banco.
+2. Configure o arquivo .env usando .env.example como referência. O ambiente local está configurado para localhost:3306, usuário root, senha vazia e banco escola.
+3. Em um banco novo, execute sql/schema.sql no phpMyAdmin. O script preserva tabelas existentes. A aplicação não cria tabelas automaticamente.
+4. Execute npm install e npm run start:dev.
+
+A API atende na porta 3000. As rotas GET, POST, PUT e DELETE continuam em /alunos e /professores. Os corpos JSON usam nome/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
+
+DELETE agora retorna a quantidade de linhas excluídas: 1 quando encontra o registro, 0 quando ele não existe. PUT retorna o registro atualizado ou uma resposta vazia se ele não existe. IDs inválidos retornam HTTP 400.
+
+O arquivo .env está ignorado pelo Git. Os dados persistem no MySQL após reiniciar a API. Os shutdown hooks fecham o pool ao encerrar a aplicação.
+
+## Verificação
+
+- npm run build
+- npm run lint
+- npm test -- --runInBand
+- npm run test:e2e -- --runInBand
+
+Os testes HTTP automatizados substituem o driver do banco por uma implementação simulada; não alteram o banco local.
+
+---
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>

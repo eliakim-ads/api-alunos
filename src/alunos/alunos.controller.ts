@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  Put,
+import {  Body,  Controller,  Delete,  Get,  Param,  ParseIntPipe,  Post,  Put,
 } from '@nestjs/common';
 import { AlunosService } from './alunos.service';
 

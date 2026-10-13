@@ -1,0 +1,12 @@
+-- Execute no banco escola. As tabelas existentes são preservadas.
+CREATE TABLE IF NOT EXISTS alunos (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL,
+  curso VARCHAR(100) NOT NULL
+) DEFAULT CHARACTER SET utf8mb4;
+
+CREATE TABLE IF NOT EXISTS professores (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL,
+  disciplina VARCHAR(100) NOT NULL
+) DEFAULT CHARACTER SET utf8mb4;

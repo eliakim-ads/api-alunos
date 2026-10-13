@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { DatabaseService } from '../src/database/database.service';
 
 describe.each([
   ['alunos', 'curso'],
@@ -10,9 +11,61 @@ describe.each([
   let app: INestApplication;
 
   beforeEach(async () => {
+    // Substitui apenas o driver: controller, service e repository são reais.
+    const dados: Record<
+      string,
+      { id: number; nome: string; [key: string]: string | number }[]
+    > = {
+      alunos: [
+        { id: 1, nome: 'Ana', curso: 'Sistemas de Informação' },
+        { id: 2, nome: 'Carlos', curso: 'Ciência da Computação' },
+      ],
+      professores: [
+        { id: 1, nome: 'João', disciplina: 'Programação Web' },
+        { id: 2, nome: 'Mariana', disciplina: 'Banco de Dados' },
+      ],
+    };
+    const ids: Record<string, number> = { alunos: 3, professores: 3 };
+    const database = {
+      async execute(sql: string, values: (string | number)[] = []) {
+        const tabela = sql.includes('alunos') ? 'alunos' : 'professores';
+        const campo = tabela === 'alunos' ? 'curso' : 'disciplina';
+        const rows = dados[tabela];
+        if (sql.startsWith('SELECT')) {
+          return [
+            sql.includes('WHERE')
+              ? rows.filter((item) => item.id === values[0])
+              : [...rows],
+            [],
+          ];
+        }
+        if (sql.startsWith('INSERT')) {
+          const id = ids[tabela]++;
+          rows.push({ id, nome: String(values[0]), [campo]: values[1] });
+          return [{ insertId: id, affectedRows: 1 }, []];
+        }
+        if (sql.startsWith('UPDATE')) {
+          const item = rows.find((row) => row.id === values[2]);
+          if (item) {
+            item.nome = String(values[0]);
+            item[campo] = values[1];
+          }
+          return [{ affectedRows: item ? 1 : 0 }, []];
+        }
+        if (sql.startsWith('DELETE')) {
+          const index = rows.findIndex((row) => row.id === values[0]);
+          if (index !== -1) rows.splice(index, 1);
+          return [{ affectedRows: index === -1 ? 0 : 1 }, []];
+        }
+        throw new Error('SQL inesperado: ' + sql);
+      },
+    };
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(DatabaseService)
+      .useValue(database)
+      .compile();
     app = module.createNestApplication();
     await app.init();
   });
@@ -21,7 +74,7 @@ describe.each([
     await app.close();
   });
 
-  it('lista, busca, cria, atualiza e exclui dados em memória', async () => {
+  it('integra controller, service e repository no CRUD com driver simulado', async () => {
     const server = app.getHttpServer();
     const base = '/' + recurso;
     const lista = await request(server).get(base).expect(200);
@@ -49,7 +102,7 @@ describe.each([
     await request(server)
       .delete(base + '/1')
       .expect(200)
-      .expect('true');
+      .expect('1');
     await request(server)
       .post(base)
       .send(body)
@@ -82,6 +135,6 @@ describe.each([
     await request(server)
       .delete(base + '/999')
       .expect(200)
-      .expect('false');
+      .expect('0');
   });
 });
