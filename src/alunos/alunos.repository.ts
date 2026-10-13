@@ -5,7 +5,7 @@ import { DatabaseService } from '../database/database.service';
 export interface AlunoRow extends RowDataPacket {
   id: number;
   nome: string;
-  email: string | null;
+  email: string;
   curso: string;
 }
 
@@ -40,6 +40,23 @@ export class AlunosRepository {
     const [result] = await this.databaseService.execute<ResultSetHeader>(
       'UPDATE alunos SET nome = ?, email = ?, curso = ? WHERE id = ?',
       [nome, email, curso, id],
+    );
+    return result.affectedRows;
+  }
+
+  async patch(
+    id: number,
+    data: Partial<Pick<AlunoRow, 'nome' | 'email' | 'curso'>>,
+  ) {
+    const fields = (['nome', 'email', 'curso'] as const).filter(
+      (field) => data[field] !== undefined,
+    );
+    if (!fields.length) return 0;
+    const assignments = fields.map((field) => field + ' = ?').join(', ');
+    const values = fields.map((field) => data[field]!);
+    const [result] = await this.databaseService.execute<ResultSetHeader>(
+      'UPDATE alunos SET ' + assignments + ' WHERE id = ?',
+      [...values, id],
     );
     return result.affectedRows;
   }

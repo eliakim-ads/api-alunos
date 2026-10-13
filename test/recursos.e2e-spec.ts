@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { ValidationPipe, INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DatabaseService } from '../src/database/database.service';
@@ -7,6 +7,7 @@ import { DatabaseService } from '../src/database/database.service';
 describe.each([
   ['alunos', 'curso'],
   ['professores', 'disciplina'],
+  ['disciplinas', 'carga_horaria'],
 ])('%s (e2e)', (recurso, campo) => {
   let app: INestApplication;
 
@@ -30,16 +31,33 @@ describe.each([
           curso: 'Ciência da Computação',
         },
       ],
+      disciplinas: [
+        { id: 1, nome: 'Programação Web', carga_horaria: 80 },
+        { id: 2, nome: 'Banco de Dados', carga_horaria: 60 },
+      ],
       professores: [
         { id: 1, nome: 'João', disciplina: 'Programação Web' },
         { id: 2, nome: 'Mariana', disciplina: 'Banco de Dados' },
       ],
     };
-    const ids: Record<string, number> = { alunos: 3, professores: 3 };
+    const ids: Record<string, number> = {
+      alunos: 3,
+      professores: 3,
+      disciplinas: 3,
+    };
     const database = {
       async execute(sql: string, values: (string | number)[] = []) {
-        const tabela = sql.includes('alunos') ? 'alunos' : 'professores';
-        const campo = tabela === 'alunos' ? 'curso' : 'disciplina';
+        const tabela = sql.includes('alunos')
+          ? 'alunos'
+          : sql.includes('disciplinas')
+            ? 'disciplinas'
+            : 'professores';
+        const campo =
+          tabela === 'alunos'
+            ? 'curso'
+            : tabela === 'disciplinas'
+              ? 'carga_horaria'
+              : 'disciplina';
         const rows = dados[tabela];
         if (sql.startsWith('SELECT')) {
           return [
@@ -60,13 +78,16 @@ describe.each([
           return [{ insertId: id, affectedRows: 1 }, []];
         }
         if (sql.startsWith('UPDATE')) {
-          const item = rows.find(
-            (row) => row.id === values[tabela === 'alunos' ? 3 : 2],
-          );
+          const item = rows.find((row) => row.id === values[values.length - 1]);
           if (item) {
-            item.nome = String(values[0]);
-            if (tabela === 'alunos') item.email = values[1];
-            item[campo] = values[tabela === 'alunos' ? 2 : 1];
+            const columns = sql
+              .split(' SET ')[1]
+              .split(' WHERE ')[0]
+              .split(',')
+              .map((entry) => entry.trim().split(' ')[0]);
+            columns.forEach((column, index) => {
+              item[column] = values[index];
+            });
           }
           return [{ affectedRows: item ? 1 : 0 }, []];
         }
@@ -85,6 +106,9 @@ describe.each([
       .useValue(database)
       .compile();
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 
@@ -104,7 +128,7 @@ describe.each([
     const body = {
       nome: 'Teste',
       ...(recurso === 'alunos' ? { email: 'teste@example.com' } : {}),
-      [campo]: 'Inicial',
+      [campo]: recurso === 'disciplinas' ? 80 : 'Inicial',
     };
     await request(server)
       .post(base)
@@ -114,7 +138,7 @@ describe.each([
     const atualizado = {
       nome: 'Atualizado',
       ...(recurso === 'alunos' ? { email: 'atualizado@example.com' } : {}),
-      [campo]: 'Final',
+      [campo]: recurso === 'disciplinas' ? 100 : 'Final',
     };
     await request(server)
       .put(base + '/3')
@@ -127,8 +151,8 @@ describe.each([
       .expect({ id: 3, ...atualizado });
     await request(server)
       .delete(base + '/1')
-      .expect(200)
-      .expect('1');
+      .expect(recurso === 'professores' ? 200 : 204)
+      .expect(recurso === 'professores' ? '1' : '');
     await request(server)
       .post(base)
       .send(body)
@@ -138,6 +162,71 @@ describe.each([
     expect(final.body.map((item: { id: number }) => item.id)).toEqual([
       2, 3, 4,
     ]);
+  });
+
+  it('valida DTOs e atualização parcial', async () => {
+    if (recurso === 'professores') return;
+    const server = app.getHttpServer();
+    const base = '/' + recurso;
+    const valid = {
+      nome: 'Teste',
+      ...(recurso === 'alunos' ? { email: 'teste@example.com' } : {}),
+      [campo]: recurso === 'disciplinas' ? 80 : 'ADS',
+    };
+    for (const invalid of [
+      {},
+      { ...valid, nome: '' },
+      { ...valid, nome: 123 },
+      { ...valid, nome: 'a'.repeat(101) },
+      { ...valid, [campo]: false },
+    ]) {
+      await request(server).post(base).send(invalid).expect(400);
+      await request(server)
+        .put(base + '/1')
+        .send(invalid)
+        .expect(400);
+    }
+    await request(server)
+      .post(base)
+      .send({ ...valid, admin: true })
+      .expect(201)
+      .expect({ id: 3, ...valid });
+    if (recurso === 'alunos') {
+      await request(server)
+        .post(base)
+        .send({ ...valid, email: 'abc' })
+        .expect(400);
+      await request(server)
+        .post(base)
+        .send({ ...valid, email: 'a'.repeat(151) })
+        .expect(400);
+      const before = await request(server)
+        .get(base + '/1')
+        .expect(200);
+      await request(server)
+        .patch(base + '/1')
+        .send({ curso: 'Engenharia de Software', admin: true })
+        .expect(200)
+        .expect({ ...before.body, curso: 'Engenharia de Software' });
+      await request(server)
+        .patch(base + '/1')
+        .send({ email: null })
+        .expect(400);
+      await request(server)
+        .patch(base + '/1')
+        .send({ email: 'abc' })
+        .expect(400);
+      await request(server)
+        .patch(base + '/999')
+        .send({ curso: 'ADS' })
+        .expect(404);
+    } else {
+      for (const hours of [0, -1, 1.5, '80', 2147483648])
+        await request(server)
+          .post(base)
+          .send({ ...valid, carga_horaria: hours })
+          .expect(400);
+    }
   });
 
   it('rejeita IDs inválidos e trata atualização/exclusão de IDs ausentes', async () => {
@@ -155,12 +244,17 @@ describe.each([
       .expect(400);
     await request(server)
       .put(base + '/999')
-      .send({ nome: 'Teste', [campo]: 'Teste' })
-      .expect(200)
-      .expect('');
+      .send({
+        nome: 'Teste',
+        ...(recurso === 'alunos' ? { email: 'teste@example.com' } : {}),
+        [campo]: recurso === 'disciplinas' ? 60 : 'Teste',
+      })
+      .expect(recurso === 'professores' ? 200 : 404);
+    await request(server)
+      .get(base + '/999')
+      .expect(recurso === 'professores' ? 200 : 404);
     await request(server)
       .delete(base + '/999')
-      .expect(200)
-      .expect('0');
+      .expect(recurso === 'professores' ? 200 : 404);
   });
 });

@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { AlunosRepository } from './alunos.repository';
+import { CreateAlunoDto } from './dto/create-aluno.dto';
+import { UpdateAlunoDto } from './dto/update-aluno.dto';
+import { PatchAlunoDto } from './dto/patch-aluno.dto';
 
 @Injectable()
 export class AlunosService {
@@ -9,20 +12,31 @@ export class AlunosService {
     return this.repository.findAll();
   }
 
-  findById(id: number) {
-    return this.repository.findById(id);
+  async findById(id: number) {
+    const aluno = await this.repository.findById(id);
+    if (!aluno) throw new NotFoundException('Aluno não encontrado');
+    return aluno;
   }
 
-  create(nome: string, email: string, curso: string) {
-    return this.repository.create(nome, email, curso);
+  create(data: CreateAlunoDto) {
+    return this.repository.create(data.nome, data.email, data.curso);
   }
 
-  async update(id: number, nome: string, email: string, curso: string) {
-    await this.repository.update(id, nome, email, curso);
-    return this.repository.findById(id);
+  async update(id: number, data: UpdateAlunoDto) {
+    await this.findById(id);
+    await this.repository.update(id, data.nome, data.email, data.curso);
+    return this.findById(id);
   }
 
-  delete(id: number) {
-    return this.repository.delete(id);
+  async patch(id: number, data: PatchAlunoDto) {
+    await this.findById(id);
+    await this.repository.patch(id, data);
+    return this.findById(id);
+  }
+
+  async delete(id: number) {
+    await this.findById(id);
+    const affected = await this.repository.delete(id);
+    if (!affected) throw new NotFoundException('Aluno não encontrado');
   }
 }

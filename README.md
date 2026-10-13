@@ -1,6 +1,6 @@
 # API da escola com MySQL
 
-Os CRUDs de alunos e professores usam Controller → Service → Repository → DatabaseService → MySQL, com mysql2 e um pool de até 10 conexões.
+Os CRUDs de alunos, professores e disciplinas usam Controller → Service → Repository → DatabaseService → MySQL, com mysql2 e um pool de até 10 conexões.
 
 ## Executar localmente
 
@@ -9,11 +9,35 @@ Os CRUDs de alunos e professores usam Controller → Service → Repository → 
 3. Em um banco novo, execute sql/schema.sql no phpMyAdmin. O script preserva tabelas existentes. A aplicação não cria tabelas automaticamente.
 4. Execute npm install e npm run start:dev.
 
-A API atende na porta 3000. As rotas GET, POST, PUT e DELETE continuam em /alunos e /professores. Os corpos JSON usam nome/email/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
+A API atende na porta 3000. As rotas GET, POST, PUT e DELETE estão em /alunos, /professores e /disciplinas. Alunos também oferecem PATCH /alunos/:id. Os corpos JSON usam nome/email/curso para alunos e nome/disciplina para professores. GET, PUT e DELETE de um registro usam /:id.
 
-DELETE agora retorna a quantidade de linhas excluídas: 1 quando encontra o registro, 0 quando ele não existe. PUT retorna o registro atualizado ou uma resposta vazia se ele não existe. IDs inválidos retornam HTTP 400.
+Alunos e disciplinas retornam 404 quando o ID não existe, e DELETE retorna 204 sem corpo quando exclui. POST e PUT exigem todos os campos do DTO. Professores mantêm o contrato anterior: DELETE retorna 1 ou 0. IDs inválidos retornam HTTP 400.
 
 O arquivo .env está ignorado pelo Git. Os dados persistem no MySQL após reiniciar a API. Os shutdown hooks fecham o pool ao encerrar a aplicação.
+
+## Aula 3: DTOs e validação
+
+A validação global usa whitelist: true e transform: true. Campos extras são removidos. Entradas inválidas retornam 400. Nome e curso são textos obrigatórios com até 100 caracteres; email é obrigatório, válido e tem até 150 caracteres. PUT exige todos os campos. PATCH de alunos usa PartialType e aceita campos ausentes, mas rejeita null.
+
+Exemplo POST /alunos e PUT /alunos/:id:
+
+```json
+{"nome":"Maria","email":"maria@senac.com","curso":"ADS"}
+```
+
+Exemplo PATCH /alunos/:id:
+
+```json
+{"curso":"Engenharia de Software"}
+```
+
+Exemplo POST /disciplinas e PUT /disciplinas/:id:
+
+```json
+{"nome":"Programação Web II","carga_horaria":80}
+```
+
+Carga horária deve ser um inteiro positivo, dentro do limite de INT do MySQL. sql/003-aula3.sql documenta a migração desta aula; preencha e-mails nulos antes de torná-los NOT NULL.
 
 ## Verificação
 

@@ -1,3 +1,4 @@
+import { DisciplinasModule } from './disciplinas/disciplinas.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
@@ -11,6 +12,7 @@ import { ProfessoresModule } from './professores/professores.module';
     ConfigModule.forRoot({ isGlobal: true }),
     AlunosModule,
     ProfessoresModule,
+    DisciplinasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
